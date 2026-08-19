@@ -399,7 +399,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tréning">
-<link rel="apple-touch-icon" href="pulse_app_icon_1024.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
@@ -611,21 +611,36 @@ btn.addEventListener('click', function(){
   applyTheme(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
 });
 
+/* ---------- log (rendered first, so it never depends on the charts) ---------- */
+var log = {{LOG_JSON}};
+document.getElementById('logList').innerHTML = log.map(function(r){
+  return '<div class="log-row">' +
+    '<div class="date">' + r.date + '</div>' +
+    '<div class="what"><span class="type-pill ' + r.type + '"></span>' + r.name + '</div>' +
+    '<div class="stat">' + r.stat + '</div>' +
+  '</div>';
+}).join('');
+
 /* ---------- charts ---------- */
 function cssVar(n){ return getComputedStyle(root).getPropertyValue(n).trim(); }
 
 function restyle(chart){
+  if (!chart || !chart.options) return;
   var grid = cssVar('--grid'), axis = cssVar('--axis'), txt = cssVar('--text-2');
-  Object.keys(chart.options.scales || {}).forEach(function(k){
-    var s = chart.options.scales[k];
+  var scales = chart.options.scales || {};
+  Object.keys(scales).forEach(function(k){
+    var s = scales[k];
+    if (!s) return;
     if (s.grid && s.grid.display !== false) s.grid.color = grid;
     if (s.border) s.border.color = axis;
     if (s.title) s.title.color = cssVar('--text-3');
-    s.ticks = Object.assign(s.ticks || {}, {color: txt});
+    if (!s.ticks) s.ticks = {};
+    s.ticks.color = txt;
   });
-  if (chart.options.plugins && chart.options.plugins.legend) {
-    chart.options.plugins.legend.labels = Object.assign(
-      chart.options.plugins.legend.labels || {}, {color: txt});
+  var lg = chart.options.plugins && chart.options.plugins.legend;
+  if (lg && lg.display !== false) {
+    if (!lg.labels) lg.labels = {};
+    lg.labels.color = txt;
   }
   chart.update('none');
 }
@@ -690,17 +705,7 @@ var weeklyChart = new Chart(document.getElementById('weeklyChart'), {
 });
 
 window.__charts = [rideChart, monthlyChart, elevChart, weeklyChart];
-applyTheme(saved || 'light');
-
-/* ---------- log ---------- */
-var log = {{LOG_JSON}};
-document.getElementById('logList').innerHTML = log.map(function(r){
-  return '<div class="log-row">' +
-    '<div class="date">' + r.date + '</div>' +
-    '<div class="what"><span class="type-pill ' + r.type + '"></span>' + r.name + '</div>' +
-    '<div class="stat">' + r.stat + '</div>' +
-  '</div>';
-}).join('');
+try { applyTheme(saved || 'light'); } catch(e) { console.error('theme:', e); }
 </script>
 </body>
 </html>
@@ -714,8 +719,8 @@ MANIFEST = {
     "background_color": "#ffffff",
     "theme_color": "#fc4c02",
     "icons": [
-        {"src": "pulse_app_icon_180.png", "sizes": "180x180", "type": "image/png"},
-        {"src": "pulse_app_icon_1024.png", "sizes": "1024x1024", "type": "image/png"},
+        {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+        {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"},
     ],
 }
 
