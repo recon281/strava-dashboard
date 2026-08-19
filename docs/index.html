@@ -1,203 +1,317 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="sk" data-theme="light">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Training Dashboard — Gabriel Veltschmid</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Tréningový prehľad – Gabriel Veltschmid</title>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#fc4c02">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tréning">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
-  :root{
-    --asphalt-0:#ffffff; --asphalt-1:#f7f7f8; --line:#e2e2e5;
-    --readout:#fc4c02; --readout-dim:#c93e01; --amber:#fc4c02;
-    --sage:#2e2e2e; --run:#0074d9;
+  :root, [data-theme="light"]{
+    --bg:#ffffff; --surface:#f7f7f8; --line:#e2e2e5;
+    --brand:#fc4c02; --brand-dim:#c93e01; --charcoal:#2e2e2e; --run:#0074d9;
     --text-1:#242428; --text-2:#6b6b70; --text-3:#9a9aa0;
+    --grid:#ececee; --axis:#d5d5d9;
+    --gold:#e8a33d; --silver:#9aa0a6; --bronze:#b07a4f;
+  }
+  [data-theme="dark"]{
+    --bg:#101013; --surface:#191920; --line:#2c2c34;
+    --brand:#ff5a1a; --brand-dim:#ff8250; --charcoal:#d8d8de; --run:#3a9bf5;
+    --text-1:#f2f2f5; --text-2:#a8a8b2; --text-3:#74747f;
+    --grid:#24242c; --axis:#3a3a44;
+    --gold:#f0b357; --silver:#b4bac0; --bronze:#c78f61;
   }
   *{box-sizing:border-box;}
-  body{background:var(--asphalt-0);color:var(--text-1);font-family:'Helvetica Neue',Arial,sans-serif;margin:0;padding:0 0 60px 0;}
+  body{background:var(--bg);color:var(--text-1);
+    font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;margin:0;
+    padding:env(safe-area-inset-top) 0 calc(60px + env(safe-area-inset-bottom));
+    transition:background .2s,color .2s;-webkit-font-smoothing:antialiased;}
   .mono{font-family:'SFMono-Regular','Consolas',Menlo,monospace;font-variant-numeric:tabular-nums;}
+
   .bezel{max-width:760px;margin:0 auto;padding:28px 20px 18px;border-bottom:1px solid var(--line);}
   .bezel-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
-  .eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--readout-dim);margin:0 0 6px;}
+  .eyebrow{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--brand-dim);margin:0 0 6px;}
   h1{margin:0;font-size:26px;font-weight:700;}
   .sub{margin:4px 0 0;font-size:13px;color:var(--text-2);}
-  .clock{text-align:right;font-size:12px;color:var(--text-3);}
-  .live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--readout);margin-right:6px;box-shadow:0 0 6px var(--readout);}
-  .readout-strip{max-width:760px;margin:0 auto;padding:22px 20px 6px;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);}
-  .readout{background:var(--asphalt-1);padding:16px 12px;text-align:center;}
-  .readout .val{font-size:26px;font-weight:700;color:var(--readout);line-height:1.1;}
-  .readout .val small{font-size:13px;font-weight:500;color:var(--readout-dim);margin-left:2px;}
+  .head-right{display:flex;flex-direction:column;align-items:flex-end;gap:10px;}
+  .clock{font-size:11px;color:var(--text-3);text-align:right;}
+  .live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;
+    background:var(--brand);margin-right:6px;box-shadow:0 0 6px var(--brand);}
+  .theme-btn{background:var(--surface);border:1px solid var(--line);color:var(--text-2);
+    border-radius:999px;padding:6px 12px;font-size:12px;cursor:pointer;
+    display:flex;align-items:center;gap:6px;font-family:inherit;}
+  .theme-btn:active{transform:scale(.96);}
+
+  .readout-strip{max-width:760px;margin:0 auto;padding:22px 20px 6px;display:grid;
+    grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line);border:1px solid var(--line);}
+  .readout{background:var(--surface);padding:16px 12px;text-align:center;}
+  .readout .val{font-size:26px;font-weight:700;color:var(--brand);line-height:1.1;}
+  .readout .val small{font-size:13px;font-weight:500;color:var(--brand-dim);margin-left:2px;}
   .readout .lbl{margin-top:6px;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-3);}
+
   section{max-width:760px;margin:0 auto;padding:34px 20px 0;}
-  .section-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:8px;}
+  .section-head{display:flex;align-items:baseline;justify-content:space-between;
+    margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:8px;}
   .section-head h2{font-size:14px;letter-spacing:.1em;text-transform:uppercase;margin:0;font-weight:600;}
   .section-head .tag{font-size:11px;color:var(--text-3);}
-  .sport-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
-  .sport-card{background:var(--asphalt-1);border:1px solid var(--line);border-radius:2px;padding:14px;position:relative;overflow:hidden;}
+
+  .badge-wrap{display:flex;flex-wrap:wrap;gap:8px;}
+  .badge{font-size:12px;font-weight:600;padding:7px 12px;border-radius:999px;color:#fff;}
+  .badge.gold{background:var(--gold);}
+  .badge.silver{background:var(--silver);}
+  .badge.bronze{background:var(--bronze);}
+  .badge-empty,.rec-empty{font-size:12.5px;color:var(--text-3);}
+
+  .sport-grid,.rec-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+  .sport-card{background:var(--surface);border:1px solid var(--line);border-radius:2px;
+    padding:14px;position:relative;overflow:hidden;}
   .sport-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
-  .sport-card.walk::before{background:var(--sage);}
-  .sport-card.ride::before{background:var(--amber);}
+  .sport-card.walk::before{background:var(--charcoal);}
+  .sport-card.ride::before{background:var(--brand);}
   .sport-card.run::before{background:var(--run);}
   .sport-card.weight::before{background:var(--text-2);}
   .sport-card .name{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-2);margin-bottom:8px;}
   .sport-card .primary{font-size:22px;font-weight:700;}
   .sport-card .primary small{font-size:12px;color:var(--text-2);font-weight:400;}
   .sport-card .secondary{margin-top:6px;font-size:11.5px;color:var(--text-3);display:flex;gap:10px;}
-  .highlight-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
-  .highlight-card{background:var(--asphalt-1);border:1px solid var(--line);border-radius:2px;padding:14px;}
-  .hl-lbl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px;}
-  .hl-val{font-size:24px;font-weight:700;color:var(--amber);}
-  .hl-val small{font-size:12px;font-weight:500;color:var(--text-2);margin-left:2px;}
-  .hl-sub{margin-top:6px;font-size:11px;color:var(--text-3);}
-  .panel{background:var(--asphalt-1);border:1px solid var(--line);padding:16px 14px 8px;border-radius:2px;}
+
+  .rec-card{background:var(--surface);border:1px solid var(--line);border-radius:2px;padding:14px;}
+  .rec-lbl{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);margin-bottom:8px;}
+  .rec-val{font-size:23px;font-weight:700;color:var(--brand);}
+  .rec-val small{font-size:12px;font-weight:500;color:var(--text-2);margin-left:3px;}
+  .rec-sub{margin-top:6px;font-size:11px;color:var(--text-3);}
+
+  .route-row{display:flex;justify-content:space-between;align-items:center;gap:12px;
+    padding:12px 14px;background:var(--surface);border:1px solid var(--line);
+    border-radius:2px;margin-bottom:8px;flex-wrap:wrap;}
+  .route-label{font-size:13.5px;font-weight:600;}
+  .route-count{margin-left:8px;font-size:11px;color:#fff;background:var(--brand);
+    padding:2px 7px;border-radius:999px;font-weight:600;}
+  .route-stats{display:flex;gap:14px;font-size:12px;color:var(--text-2);}
+  .route-stats b{color:var(--text-1);}
+  .rs.up{color:#2eae5c;} .rs.down{color:#d9534f;} .rs.flat{color:var(--text-3);}
+
+  .panel{background:var(--surface);border:1px solid var(--line);padding:16px 14px 8px;border-radius:2px;}
   .panel-note{font-size:12px;color:var(--text-2);margin:0 0 14px;line-height:1.5;}
   .chart-wrap{position:relative;height:220px;}
+
   .log{border:1px solid var(--line);}
-  .log-scroll{max-height:420px;overflow-y:auto;}
-  .log-row{display:grid;grid-template-columns:64px 1fr auto;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);font-size:12.5px;}
+  .log-scroll{max-height:420px;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+  .log-row{display:grid;grid-template-columns:56px 1fr auto;gap:10px;align-items:center;
+    padding:10px 12px;border-bottom:1px solid var(--line);font-size:12.5px;}
   .log-row:last-child{border-bottom:none;}
   .log-row .date{color:var(--text-3);font-size:11px;}
   .type-pill{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:6px;vertical-align:middle;}
-  .type-pill.walk{background:var(--sage);}
-  .type-pill.ride{background:var(--amber);}
+  .type-pill.walk{background:var(--charcoal);}
+  .type-pill.ride{background:var(--brand);}
   .type-pill.run{background:var(--run);}
   .type-pill.weight{background:var(--text-2);}
-  .log-row .stat{color:var(--readout-dim);text-align:right;white-space:nowrap;}
-  footer{max-width:760px;margin:40px auto 0;padding:16px 20px 0;border-top:1px solid var(--line);font-size:11px;color:var(--text-3);display:flex;justify-content:space-between;}
-  @media (max-width:480px){.sport-grid{grid-template-columns:1fr 1fr;}.readout-strip{grid-template-columns:repeat(2,1fr);}h1{font-size:21px;}}
+  .log-row .stat{color:var(--brand-dim);text-align:right;white-space:nowrap;}
+
+  footer{max-width:760px;margin:40px auto 0;padding:16px 20px 0;border-top:1px solid var(--line);
+    font-size:11px;color:var(--text-3);display:flex;justify-content:space-between;}
+
+  @media (max-width:480px){
+    .readout-strip{grid-template-columns:repeat(2,1fr);}
+    h1{font-size:21px;}
+    .route-stats{width:100%;justify-content:space-between;}
+  }
 </style>
 </head>
 <body>
   <div class="bezel">
     <div class="bezel-top">
       <div>
-        <p class="eyebrow">Training Computer</p>
+        <p class="eyebrow">Tréningový počítač</p>
         <h1>Gabriel Veltschmid</h1>
-        <p class="sub">Stupava, Slovakia · Cesťák · 283.7 km on frame</p>
+        <p class="sub">Stupava, Slovakia &#183; Cesťák &#183; 284 km</p>
       </div>
-      <div class="clock mono"><span class="live-dot"></span>Updated 2026-08-19 16:26 UTC</div>
+      <div class="head-right">
+        <button class="theme-btn" id="themeBtn" type="button">
+          <span id="themeIcon">&#127769;</span><span id="themeLabel">Tmavý</span>
+        </button>
+        <div class="clock mono"><span class="live-dot"></span>19.08.2026 17:08 UTC</div>
+      </div>
     </div>
   </div>
 
   <div class="readout-strip">
-    <div class="readout"><div class="val mono">460<small>km</small></div><div class="lbl">Total distance</div></div>
-    <div class="readout"><div class="val mono">56.1<small>hrs</small></div><div class="lbl">Time in motion</div></div>
-    <div class="readout"><div class="val mono">73</div><div class="lbl">Activities</div></div>
-    <div class="readout"><div class="val mono">0.0<small>k</small></div><div class="lbl">Calories burned</div></div>
+    <div class="readout"><div class="val mono">460<small>km</small></div><div class="lbl">Celkovo</div></div>
+    <div class="readout"><div class="val mono">56.1<small>h</small></div><div class="lbl">Čas v pohybe</div></div>
+    <div class="readout"><div class="val mono">73</div><div class="lbl">Aktivít</div></div>
+    <div class="readout"><div class="val mono">0.0<small>k</small></div><div class="lbl">Kalórií</div></div>
   </div>
 
   <section>
-    <div class="section-head"><h2>By discipline</h2><span class="tag mono">all-time</span></div>
-    <div class="sport-grid"><div class="sport-card ride">
-        <div class="name">Ride</div>
-        <div class="primary mono">308.8<small> km</small></div>
-        <div class="secondary mono"><span>12 act.</span><span>22.5h</span><span>+1968m</span></div>
-      </div>
-<div class="sport-card walk">
-        <div class="name">Walk</div>
-        <div class="primary mono">137.4<small> km</small></div>
-        <div class="secondary mono"><span>55 act.</span><span>31.8h</span><span>+1434m</span></div>
-      </div>
-<div class="sport-card run">
-        <div class="name">Run</div>
-        <div class="primary mono">13.5<small> km</small></div>
-        <div class="secondary mono"><span>5 act.</span><span>1.7h</span><span>+49m</span></div>
-      </div>
-<div class="sport-card weight">
-        <div class="name">Weight training</div>
-        <div class="primary mono">0.0<small> km</small></div>
-        <div class="secondary mono"><span>1 act.</span><span>0.1h</span><span>+0m</span></div>
-      </div></div>
+    <div class="section-head"><h2>Odznaky</h2><span class="tag mono">získané výkony</span></div>
+    <div class="badge-wrap"><span class="badge silver">50+ km jazda</span><span class="badge silver">Priemer 25+ km/h</span><span class="badge silver">100+ km za mesiac</span><span class="badge silver">500+ m stúpania / mesiac</span><span class="badge silver">4+ aktivít za týždeň</span><span class="badge silver">6 týždňov v rade</span><span class="badge silver">250+ km celkovo</span></div>
   </section>
 
   <section>
-    <div class="section-head"><h2>Highlights</h2><span class="tag mono">bests on record</span></div>
-    <div class="highlight-grid"><div class="highlight-card"><div class="hl-lbl">Longest ride</div>
-        <div class="hl-val mono">61.3<small>km</small></div>
-        <div class="hl-sub mono">2026-07-26 · 23.0 km/h avg</div></div><div class="highlight-card"><div class="hl-lbl">Fastest ride</div>
-        <div class="hl-val mono">25.3<small>km/h</small></div>
-        <div class="hl-sub mono">2026-08-08 · 42.1 km</div></div><div class="highlight-card"><div class="hl-lbl">Longest walk</div>
-        <div class="hl-val mono">7.66<small>km</small></div>
-        <div class="hl-sub mono">2026-04-09 · 93 min</div></div><div class="highlight-card"><div class="hl-lbl">Biggest burn</div>
-        <div class="hl-val mono">0<small>cal</small></div>
-        <div class="hl-sub mono">2026-08-14 · Afternoon Walk</div></div></div>
+    <div class="section-head"><h2>Osobné rekordy</h2><span class="tag mono">najlepšie výkony</span></div>
+    <div class="rec-grid"><div class="rec-card"><div class="rec-lbl">Najdlhšia jazda</div><div class="rec-val mono">61.3<small>km</small></div><div class="rec-sub mono">2026-07-26</div></div><div class="rec-card"><div class="rec-lbl">Najväčšie stúpanie</div><div class="rec-val mono">342<small>m</small></div><div class="rec-sub mono">2026-06-24</div></div><div class="rec-card"><div class="rec-lbl">Najrýchlejší priemer (40 km+)</div><div class="rec-val mono">25.3<small>km/h</small></div><div class="rec-sub mono">2026-08-08</div></div><div class="rec-card"><div class="rec-lbl">Najdlhší čas v sedle</div><div class="rec-val mono">5.6<small>h</small></div><div class="rec-sub mono">2025-08-29</div></div><div class="rec-card"><div class="rec-lbl">Najdlhší beh</div><div class="rec-val mono">5.03<small>km</small></div><div class="rec-sub mono">2025-08-20</div></div><div class="rec-card"><div class="rec-lbl">Najdlhšia prechádzka</div><div class="rec-val mono">7.66<small>km</small></div><div class="rec-sub mono">2026-04-09</div></div></div>
   </section>
 
   <section>
-    <div class="section-head"><h2>Weekly consistency</h2><span class="tag mono">activities per week</span></div>
-    <div class="panel"><div class="chart-wrap" style="height:160px;"><canvas id="weeklyChart"></canvas></div></div>
+    <div class="section-head"><h2>Podľa športu</h2><span class="tag mono">celkovo</span></div>
+    <div class="sport-grid"><div class="sport-card ride"><div class="name">Bicykel</div><div class="primary mono">308.8<small> km</small></div><div class="secondary mono"><span>12 akt.</span><span>22.5h</span><span>+1968m</span></div></div><div class="sport-card walk"><div class="name">Chôdza</div><div class="primary mono">137.4<small> km</small></div><div class="secondary mono"><span>55 akt.</span><span>31.8h</span><span>+1434m</span></div></div><div class="sport-card run"><div class="name">Beh</div><div class="primary mono">13.5<small> km</small></div><div class="secondary mono"><span>5 akt.</span><span>1.7h</span><span>+49m</span></div></div><div class="sport-card weight"><div class="name">Posilňovanie</div><div class="primary mono">0.0<small> km</small></div><div class="secondary mono"><span>1 akt.</span><span>0.1h</span><span>+0m</span></div></div></div>
   </section>
 
   <section>
-    <div class="section-head"><h2>Elevation gain</h2><span class="tag mono">meters climbed, by month</span></div>
-    <div class="panel"><div class="chart-wrap"><canvas id="elevChart"></canvas></div></div>
+    <div class="section-head"><h2>Opakované trasy</h2><span class="tag mono">progres</span></div>
+    <p class="panel-note">Jazdy sú zoskupené podľa dĺžky – rovnaká skupina zvyčajne znamená rovnaký okruh. Šípka ukazuje zmenu priemernej rýchlosti od prvej po poslednú jazdu.</p>
+    <div class="route-row"><div class="route-label">~40-45 km<span class="route-count">2x</span></div><div class="route-stats mono"><span class="rs">najlepší <b>25.3</b> km/h</span><span class="rs up">&#8599; +0.7 km/h</span></div></div><div class="route-row"><div class="route-label">~15-20 km<span class="route-count">2x</span></div><div class="route-stats mono"><span class="rs">najlepší <b>23.0</b> km/h</span><span class="rs up">&#8599; +2.7 km/h</span></div></div><div class="route-row"><div class="route-label">~20-25 km<span class="route-count">2x</span></div><div class="route-stats mono"><span class="rs">najlepší <b>22.4</b> km/h</span><span class="rs up">&#8599; +3.3 km/h</span></div></div><div class="route-row"><div class="route-label">~0-5 km<span class="route-count">2x</span></div><div class="route-stats mono"><span class="rs">najlepší <b>0.6</b> km/h</span><span class="rs up">&#8599; +0.6 km/h</span></div></div>
   </section>
 
   <section>
-    <div class="section-head"><h2>Monthly volume</h2><span class="tag mono">distance, km</span></div>
-    <div class="panel"><div class="chart-wrap"><canvas id="monthlyChart"></canvas></div></div>
-  </section>
-
-  <section>
-    <div class="section-head"><h2>Ride progression</h2><span class="tag mono">distance &amp; speed</span></div>
+    <div class="section-head"><h2>Progres na bicykli</h2><span class="tag mono">vzdialenosť a rýchlosť</span></div>
     <div class="panel"><div class="chart-wrap"><canvas id="rideChart"></canvas></div></div>
   </section>
 
   <section>
-    <div class="section-head"><h2>Full log</h2><span class="tag mono">all activities</span></div>
+    <div class="section-head"><h2>Mesačný objem</h2><span class="tag mono">km</span></div>
+    <div class="panel"><div class="chart-wrap"><canvas id="monthlyChart"></canvas></div></div>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>Stúpanie</h2><span class="tag mono">metre, po mesiacoch</span></div>
+    <div class="panel"><div class="chart-wrap"><canvas id="elevChart"></canvas></div></div>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>Pravidelnosť</h2><span class="tag mono">aktivít za týždeň</span></div>
+    <div class="panel"><div class="chart-wrap" style="height:160px;"><canvas id="weeklyChart"></canvas></div></div>
+  </section>
+
+  <section>
+    <div class="section-head"><h2>Denník</h2><span class="tag mono">všetky aktivity</span></div>
     <div class="log mono log-scroll" id="logList"></div>
   </section>
 
-  <footer class="mono"><span>SRC: STRAVA</span><span>AUTO-SYNCED</span></footer>
+  <footer class="mono"><span>ZDROJ: STRAVA</span><span>AUTOMATICKY AKTUALIZOVANÉ</span></footer>
 
 <script>
-Chart.defaults.color = '#6b6b70';
+/* ---------- theme toggle ---------- */
+var root = document.documentElement;
+var btn = document.getElementById('themeBtn');
+var icon = document.getElementById('themeIcon');
+var label = document.getElementById('themeLabel');
+
+function applyTheme(t){
+  root.setAttribute('data-theme', t);
+  icon.textContent = t === 'dark' ? '\u2600\uFE0F' : '\uD83C\uDF19';
+  label.textContent = t === 'dark' ? 'Svetlý' : 'Tmavý';
+  try { localStorage.setItem('theme', t); } catch(e){}
+  if (window.__charts) window.__charts.forEach(function(c){ restyle(c); });
+}
+
+var saved = null;
+try { saved = localStorage.getItem('theme'); } catch(e){}
+if (!saved && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+  saved = 'dark';
+}
+
+btn.addEventListener('click', function(){
+  applyTheme(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+});
+
+/* ---------- charts ---------- */
+function cssVar(n){ return getComputedStyle(root).getPropertyValue(n).trim(); }
+
+function restyle(chart){
+  var grid = cssVar('--grid'), axis = cssVar('--axis'), txt = cssVar('--text-2');
+  Object.keys(chart.options.scales || {}).forEach(function(k){
+    var s = chart.options.scales[k];
+    if (s.grid && s.grid.display !== false) s.grid.color = grid;
+    if (s.border) s.border.color = axis;
+    if (s.title) s.title.color = cssVar('--text-3');
+    s.ticks = Object.assign(s.ticks || {}, {color: txt});
+  });
+  if (chart.options.plugins && chart.options.plugins.legend) {
+    chart.options.plugins.legend.labels = Object.assign(
+      chart.options.plugins.legend.labels || {}, {color: txt});
+  }
+  chart.update('none');
+}
+
 Chart.defaults.font.family = "'SFMono-Regular','Consolas',monospace";
 Chart.defaults.font.size = 11;
 
-new Chart(document.getElementById('monthlyChart'), {
-  type:'bar',
-  data:{labels:["08", "09", "10", "11", "12", "01", "02", "03", "04", "05", "06", "07", "08"], datasets:[{data:[37.5, 10.9, 6.6, 7.7, 5.7, 17.2, 15.7, 4.5, 33.9, 96.8, 46.6, 127.4, 49.2], backgroundColor:'#fc4c02', borderRadius:1, maxBarThickness:28}]},
-  options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
-    scales:{x:{grid:{display:false}, border:{color:'#d5d5d9'}}, y:{grid:{color:'#ececee'}, border:{display:false}, title:{display:true,text:'km',color:'#9a9aa0'}}}}
-});
+function base(yTitle){
+  return {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false}},
+    scales:{
+      x:{grid:{display:false}, border:{}},
+      y:{grid:{}, border:{display:false}, title:{display:true, text:yTitle}}
+    }
+  };
+}
 
-new Chart(document.getElementById('rideChart'), {
+var rideChart = new Chart(document.getElementById('rideChart'), {
   type:'line',
   data:{labels:["08-18", "08-24", "08-29", "04-25", "05-03", "05-08", "05-31", "05-31", "06-24", "07-22", "07-26", "08-08"], datasets:[
-    {label:'Distance (km)', data:[0.0, 21.4, 3.6, 13.3, 27.4, 23.5, 19.6, 19.3, 34.1, 43.2, 61.3, 42.1], borderColor:'#fc4c02', backgroundColor:'rgba(252,76,2,0.08)', yAxisID:'y', tension:0.3, pointRadius:3, fill:true},
-    {label:'Avg speed (km/h)', data:[0.0, 19.0, 0.6, 20.0, 22.2, 22.4, 20.3, 23.0, 21.8, 24.7, 23.0, 25.3], borderColor:'#2e2e2e', backgroundColor:'transparent', yAxisID:'y1', tension:0.3, pointRadius:3, borderDash:[4,3]}
+    {label:'Vzdialenosť (km)', data:[0.0, 21.4, 3.6, 13.3, 27.4, 23.5, 19.6, 19.3, 34.1, 43.2, 61.3, 42.1], borderColor:'#fc4c02',
+     backgroundColor:'rgba(252,76,2,0.08)', yAxisID:'y', tension:0.3, pointRadius:3, fill:true},
+    {label:'Priemer (km/h)', data:[0.0, 19.0, 0.6, 20.0, 22.2, 22.4, 20.3, 23.0, 21.8, 24.7, 23.0, 25.3], borderColor:'#8a8a95',
+     backgroundColor:'transparent', yAxisID:'y1', tension:0.3, pointRadius:3, borderDash:[4,3]}
   ]},
-  options:{responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-    plugins:{legend:{display:true, position:'top', align:'end', labels:{boxWidth:8,boxHeight:8,usePointStyle:true,padding:14}}},
+  options:{
+    responsive:true, maintainAspectRatio:false,
+    interaction:{mode:'index', intersect:false},
+    plugins:{legend:{display:true, position:'top', align:'end',
+      labels:{boxWidth:8, boxHeight:8, usePointStyle:true, padding:14}}},
     scales:{
-      x:{grid:{display:false}, border:{color:'#d5d5d9'}},
-      y:{position:'left', grid:{color:'#ececee'}, border:{display:false}, title:{display:true,text:'km',color:'#9a9aa0'}},
-      y1:{position:'right', grid:{display:false}, border:{display:false}, title:{display:true,text:'km/h',color:'#9a9aa0'}}
-    }}
+      x:{grid:{display:false}, border:{}},
+      y:{position:'left', grid:{}, border:{display:false}, title:{display:true, text:'km'}},
+      y1:{position:'right', grid:{display:false}, border:{display:false}, title:{display:true, text:'km/h'}}
+    }
+  }
 });
 
-new Chart(document.getElementById('weeklyChart'), {
+var monthlyChart = new Chart(document.getElementById('monthlyChart'), {
   type:'bar',
-  data:{labels:["w33", "w34", "w35", "w37", "w38", "w39", "w40", "w42", "w43", "w44", "w45", "w46", "w51", "w1", "w11", "w15", "w17", "w18", "w19", "w21", "w22", "w24", "w25", "w26", "w27", "w29", "w3", "w30", "w31", "w32", "w33", "w4", "w5", "w6", "w7", "w8", "w9"], datasets:[{data:[1, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 3, 2, 2, 1, 4, 3, 2, 1, 2, 2, 1, 2, 2, 1, 3, 3, 5, 1, 3, 2, 1, 1, 3, 2, 2, 4], backgroundColor:'#2e2e2e', borderRadius:1, maxBarThickness:16}]},
-  options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
-    scales:{x:{grid:{display:false}, border:{color:'#d5d5d9'}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:13}}, y:{grid:{color:'#ececee'}, border:{display:false}, title:{display:true,text:'activities',color:'#9a9aa0'}, ticks:{stepSize:1}}}}
+  data:{labels:["08/25", "09/25", "10/25", "11/25", "12/25", "01/26", "02/26", "03/26", "04/26", "05/26", "06/26", "07/26", "08/26"], datasets:[{data:[37.5, 10.9, 6.6, 7.7, 5.7, 17.2, 15.7, 4.5, 33.9, 96.8, 46.6, 127.4, 49.2],
+    backgroundColor:'#fc4c02', borderRadius:1, maxBarThickness:28}]},
+  options: base('km')
 });
 
-new Chart(document.getElementById('elevChart'), {
+var elevChart = new Chart(document.getElementById('elevChart'), {
   type:'line',
-  data:{labels:["08", "09", "10", "11", "12", "01", "02", "03", "04", "05", "06", "07", "08"], datasets:[{data:[366.1, 253.2, 17.5, 54.5, 6.4, 331.4, 86.7, 50.2, 463.6, 720.4, 372.4, 488.4, 240.2], borderColor:'#0074d9', backgroundColor:'rgba(0,116,217,0.08)', tension:0.3, pointRadius:3, fill:true}]},
-  options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
-    scales:{x:{grid:{display:false}, border:{color:'#d5d5d9'}}, y:{grid:{color:'#ececee'}, border:{display:false}, title:{display:true,text:'meters',color:'#9a9aa0'}}}}
+  data:{labels:["08/25", "09/25", "10/25", "11/25", "12/25", "01/26", "02/26", "03/26", "04/26", "05/26", "06/26", "07/26", "08/26"], datasets:[{data:[366.1, 253.2, 17.5, 54.5, 6.4, 331.4, 86.7, 50.2, 463.6, 720.4, 372.4, 488.4, 240.2], borderColor:'#0074d9',
+    backgroundColor:'rgba(0,116,217,0.08)', tension:0.3, pointRadius:3, fill:true}]},
+  options: base('m')
 });
 
-const log = [{"date": "08-14", "name": "Afternoon Walk", "type": "walk", "stat": "2.51 km · 35 min"}, {"date": "08-14", "name": "Lunch Walk", "type": "walk", "stat": "1.08 km · 14 min"}, {"date": "08-08", "name": "Morning Ride", "type": "ride", "stat": "42.1 km · 25.3 km/h"}, {"date": "08-07", "name": "Evening Walk", "type": "walk", "stat": "1.22 km · 9 min"}, {"date": "08-07", "name": "Morning Walk", "type": "walk", "stat": "2.29 km · 32 min"}, {"date": "07-29", "name": "Evening Walk", "type": "walk", "stat": "3.88 km · 63 min"}, {"date": "07-26", "name": "Evening Walk", "type": "walk", "stat": "3.03 km · 45 min"}, {"date": "07-26", "name": "Morning Ride", "type": "ride", "stat": "61.3 km · 23.0 km/h"}, {"date": "07-22", "name": "Morning Ride", "type": "ride", "stat": "43.2 km · 24.7 km/h"}, {"date": "07-21", "name": "Evening Walk", "type": "walk", "stat": "2.90 km · 41 min"}, {"date": "07-20", "name": "Afternoon Walk", "type": "walk", "stat": "2.76 km · 38 min"}, {"date": "07-18", "name": "Afternoon Run", "type": "run", "stat": "4.15 km · 8.0 km/h"}, {"date": "07-18", "name": "Afternoon Walk", "type": "walk", "stat": "3.16 km · 43 min"}, {"date": "07-14", "name": "Evening Walk", "type": "walk", "stat": "2.99 km · 44 min"}, {"date": "06-30", "name": "Morning Run", "type": "run", "stat": "1.40 km · 11.8 km/h"}, {"date": "06-25", "name": "Evening Walk", "type": "walk", "stat": "1.22 km · 19 min"}, {"date": "06-24", "name": "Afternoon Ride", "type": "ride", "stat": "34.1 km · 21.8 km/h"}, {"date": "06-21", "name": "Afternoon Walk", "type": "walk", "stat": "2.84 km · 32 min"}, {"date": "06-20", "name": "Afternoon Walk", "type": "walk", "stat": "1.78 km · 16 min"}, {"date": "06-14", "name": "Evening Walk", "type": "walk", "stat": "5.23 km · 75 min"}, {"date": "05-31", "name": "Afternoon Ride", "type": "ride", "stat": "19.3 km · 23.0 km/h"}, {"date": "05-31", "name": "Afternoon Ride", "type": "ride", "stat": "19.6 km · 20.3 km/h"}, {"date": "05-24", "name": "Evening Walk", "type": "walk", "stat": "2.26 km · 31 min"}, {"date": "05-19", "name": "Evening Walk", "type": "walk", "stat": "2.67 km · 36 min"}, {"date": "05-08", "name": "Afternoon Ride", "type": "ride", "stat": "23.5 km · 22.4 km/h"}, {"date": "05-03", "name": "Afternoon Ride", "type": "ride", "stat": "27.4 km · 22.2 km/h"}, {"date": "05-02", "name": "Afternoon Walk", "type": "walk", "stat": "2.12 km · 26 min"}, {"date": "04-25", "name": "Outdoor Cycle", "type": "ride", "stat": "13.3 km · 20.0 km/h"}, {"date": "04-24", "name": "Evening Walk", "type": "walk", "stat": "1.32 km · 13 min"}, {"date": "04-24", "name": "Outdoor Walk", "type": "walk", "stat": "1.32 km · 14 min"}, {"date": "04-10", "name": "Morning Run", "type": "run", "stat": "1.39 km · 9.0 km/h"}, {"date": "04-09", "name": "Morning Walk", "type": "walk", "stat": "7.66 km · 89 min"}, {"date": "04-09", "name": "Outdoor Walk", "type": "walk", "stat": "7.66 km · 92 min"}, {"date": "04-06", "name": "Afternoon Walk", "type": "walk", "stat": "1.27 km · 14 min"}, {"date": "03-15", "name": "Afternoon Walk", "type": "walk", "stat": "4.47 km · 69 min"}, {"date": "02-28", "name": "Afternoon Walk", "type": "walk", "stat": "1.34 km · 18 min"}, {"date": "02-28", "name": "Outdoor Walk", "type": "walk", "stat": "1.34 km · 17 min"}, {"date": "02-26", "name": "Afternoon Walk", "type": "walk", "stat": "1.69 km · 17 min"}, {"date": "02-24", "name": "Afternoon Walk", "type": "walk", "stat": "4.23 km · 57 min"}, {"date": "02-20", "name": "Morning Walk", "type": "walk", "stat": "0.78 km · 13 min"}, {"date": "02-17", "name": "Evening Walk", "type": "walk", "stat": "2.30 km · 32 min"}, {"date": "02-13", "name": "Evening Walk", "type": "walk", "stat": "0.93 km · 11 min"}, {"date": "02-13", "name": "Outdoor Walk", "type": "walk", "stat": "0.93 km · 17 min"}, {"date": "02-07", "name": "Evening Walk", "type": "walk", "stat": "1.08 km · 7 min"}, {"date": "02-07", "name": "Outdoor Walk", "type": "walk", "stat": "1.08 km · 16 min"}, {"date": "02-04", "name": "Evening Weight Training", "type": "weight", "stat": "4 min"}, {"date": "01-28", "name": "Afternoon Walk", "type": "walk", "stat": "1.03 km · 15 min"}, {"date": "01-20", "name": "Afternoon Walk", "type": "walk", "stat": "2.66 km · 38 min"}, {"date": "01-18", "name": "Lunch Walk", "type": "walk", "stat": "4.87 km · 81 min"}, {"date": "01-16", "name": "Evening Walk", "type": "walk", "stat": "2.05 km · 30 min"}, {"date": "01-14", "name": "Afternoon Walk", "type": "walk", "stat": "2.41 km · 33 min"}, {"date": "01-04", "name": "Afternoon Walk", "type": "walk", "stat": "4.20 km · 61 min"}, {"date": "12-30", "name": "Lunch Walk", "type": "walk", "stat": "2.73 km · 36 min"}, {"date": "12-20", "name": "Evening Walk", "type": "walk", "stat": "1.31 km · 17 min"}, {"date": "12-19", "name": "Evening Walk", "type": "walk", "stat": "1.64 km · 17 min"}, {"date": "11-14", "name": "Afternoon Walk", "type": "walk", "stat": "0.90 km · 12 min"}, {"date": "11-13", "name": "Afternoon Walk", "type": "walk", "stat": "1.42 km · 20 min"}, {"date": "11-12", "name": "Afternoon Walk", "type": "walk", "stat": "1.12 km · 14 min"}, {"date": "11-07", "name": "Afternoon Walk", "type": "walk", "stat": "4.27 km · 58 min"}, {"date": "10-31", "name": "Afternoon Walk", "type": "walk", "stat": "2.94 km · 35 min"}, {"date": "10-20", "name": "Lunch Walk", "type": "walk", "stat": "0.93 km · 15 min"}, {"date": "10-17", "name": "Morning Run", "type": "run", "stat": "1.52 km · 9.5 km/h"}, {"date": "10-04", "name": "Afternoon Walk", "type": "walk", "stat": "1.20 km · 18 min"}, {"date": "09-28", "name": "Lunch Walk", "type": "walk", "stat": "3.26 km · 51 min"}, {"date": "09-15", "name": "Afternoon Walk", "type": "walk", "stat": "4.37 km · 65 min"}, {"date": "09-13", "name": "Night Walk", "type": "walk", "stat": "3.28 km · 19 min"}, {"date": "08-30", "name": "Afternoon Walk", "type": "walk", "stat": "4.71 km · 66 min"}, {"date": "08-30", "name": "Lunch Walk", "type": "walk", "stat": "1.46 km · 78 min"}, {"date": "08-29", "name": "Afternoon Ride", "type": "ride", "stat": "3.6 km · 0.6 km/h"}, {"date": "08-24", "name": "Afternoon Ride", "type": "ride", "stat": "21.4 km · 19.0 km/h"}, {"date": "08-20", "name": "5km Progressive Long Run", "type": "run", "stat": "5.03 km · 6.7 km/h"}, {"date": "08-18", "name": "Afternoon Ride", "type": "ride", "stat": "0.0 km · 0.0 km/h"}, {"date": "08-11", "name": "Lunch Walk", "type": "walk", "stat": "1.28 km · 10 min"}];
-document.getElementById('logList').innerHTML = log.map(r => `
-  <div class="log-row">
-    <div class="date">${r.date}</div>
-    <div class="what"><span class="type-pill ${r.type}"></span>${r.name}</div>
-    <div class="stat">${r.stat}</div>
-  </div>
-`).join('');
+var weeklyOpts = base('aktivít');
+weeklyOpts.scales.x.ticks = {maxRotation:0, autoSkip:true, maxTicksLimit:13};
+weeklyOpts.scales.y.ticks = {stepSize:1};
+var weeklyChart = new Chart(document.getElementById('weeklyChart'), {
+  type:'bar',
+  data:{labels:["t33", "t34", "t35", "t37", "t38", "t39", "t40", "t42", "t43", "t44", "t45", "t46", "t51", "t1", "t11", "t15", "t17", "t18", "t19", "t21", "t22", "t24", "t25", "t26", "t27", "t29", "t3", "t30", "t31", "t32", "t33", "t4", "t5", "t6", "t7", "t8", "t9"], datasets:[{data:[1, 3, 3, 1, 1, 1, 1, 1, 1, 1, 1, 3, 2, 2, 1, 4, 3, 2, 1, 2, 2, 1, 2, 2, 1, 3, 3, 5, 1, 3, 2, 1, 1, 3, 2, 2, 4],
+    backgroundColor:'#8a8a95', borderRadius:1, maxBarThickness:16}]},
+  options: weeklyOpts
+});
+
+window.__charts = [rideChart, monthlyChart, elevChart, weeklyChart];
+applyTheme(saved || 'light');
+
+/* ---------- log ---------- */
+var log = [{"date": "08-14", "name": "Afternoon Walk", "type": "walk", "stat": "2.51 km · 35 min"}, {"date": "08-14", "name": "Lunch Walk", "type": "walk", "stat": "1.08 km · 14 min"}, {"date": "08-08", "name": "Morning Ride", "type": "ride", "stat": "42.1 km · 25.3 km/h"}, {"date": "08-07", "name": "Evening Walk", "type": "walk", "stat": "1.22 km · 9 min"}, {"date": "08-07", "name": "Morning Walk", "type": "walk", "stat": "2.29 km · 32 min"}, {"date": "07-29", "name": "Evening Walk", "type": "walk", "stat": "3.88 km · 63 min"}, {"date": "07-26", "name": "Evening Walk", "type": "walk", "stat": "3.03 km · 45 min"}, {"date": "07-26", "name": "Morning Ride", "type": "ride", "stat": "61.3 km · 23.0 km/h"}, {"date": "07-22", "name": "Morning Ride", "type": "ride", "stat": "43.2 km · 24.7 km/h"}, {"date": "07-21", "name": "Evening Walk", "type": "walk", "stat": "2.90 km · 41 min"}, {"date": "07-20", "name": "Afternoon Walk", "type": "walk", "stat": "2.76 km · 38 min"}, {"date": "07-18", "name": "Afternoon Run", "type": "run", "stat": "4.2 km · 8.0 km/h"}, {"date": "07-18", "name": "Afternoon Walk", "type": "walk", "stat": "3.16 km · 43 min"}, {"date": "07-14", "name": "Evening Walk", "type": "walk", "stat": "2.99 km · 44 min"}, {"date": "06-30", "name": "Morning Run", "type": "run", "stat": "1.4 km · 11.8 km/h"}, {"date": "06-25", "name": "Evening Walk", "type": "walk", "stat": "1.22 km · 19 min"}, {"date": "06-24", "name": "Afternoon Ride", "type": "ride", "stat": "34.1 km · 21.8 km/h"}, {"date": "06-21", "name": "Afternoon Walk", "type": "walk", "stat": "2.84 km · 32 min"}, {"date": "06-20", "name": "Afternoon Walk", "type": "walk", "stat": "1.78 km · 16 min"}, {"date": "06-14", "name": "Evening Walk", "type": "walk", "stat": "5.23 km · 75 min"}, {"date": "05-31", "name": "Afternoon Ride", "type": "ride", "stat": "19.3 km · 23.0 km/h"}, {"date": "05-31", "name": "Afternoon Ride", "type": "ride", "stat": "19.6 km · 20.3 km/h"}, {"date": "05-24", "name": "Evening Walk", "type": "walk", "stat": "2.26 km · 31 min"}, {"date": "05-19", "name": "Evening Walk", "type": "walk", "stat": "2.67 km · 36 min"}, {"date": "05-08", "name": "Afternoon Ride", "type": "ride", "stat": "23.5 km · 22.4 km/h"}, {"date": "05-03", "name": "Afternoon Ride", "type": "ride", "stat": "27.4 km · 22.2 km/h"}, {"date": "05-02", "name": "Afternoon Walk", "type": "walk", "stat": "2.12 km · 26 min"}, {"date": "04-25", "name": "Outdoor Cycle", "type": "ride", "stat": "13.3 km · 20.0 km/h"}, {"date": "04-24", "name": "Evening Walk", "type": "walk", "stat": "1.32 km · 13 min"}, {"date": "04-24", "name": "Outdoor Walk", "type": "walk", "stat": "1.32 km · 14 min"}, {"date": "04-10", "name": "Morning Run", "type": "run", "stat": "1.4 km · 9.0 km/h"}, {"date": "04-09", "name": "Morning Walk", "type": "walk", "stat": "7.66 km · 89 min"}, {"date": "04-09", "name": "Outdoor Walk", "type": "walk", "stat": "7.66 km · 92 min"}, {"date": "04-06", "name": "Afternoon Walk", "type": "walk", "stat": "1.27 km · 14 min"}, {"date": "03-15", "name": "Afternoon Walk", "type": "walk", "stat": "4.47 km · 69 min"}, {"date": "02-28", "name": "Afternoon Walk", "type": "walk", "stat": "1.34 km · 18 min"}, {"date": "02-28", "name": "Outdoor Walk", "type": "walk", "stat": "1.34 km · 17 min"}, {"date": "02-26", "name": "Afternoon Walk", "type": "walk", "stat": "1.69 km · 17 min"}, {"date": "02-24", "name": "Afternoon Walk", "type": "walk", "stat": "4.23 km · 57 min"}, {"date": "02-20", "name": "Morning Walk", "type": "walk", "stat": "0.78 km · 13 min"}, {"date": "02-17", "name": "Evening Walk", "type": "walk", "stat": "2.30 km · 32 min"}, {"date": "02-13", "name": "Evening Walk", "type": "walk", "stat": "0.93 km · 11 min"}, {"date": "02-13", "name": "Outdoor Walk", "type": "walk", "stat": "0.93 km · 17 min"}, {"date": "02-07", "name": "Evening Walk", "type": "walk", "stat": "1.08 km · 7 min"}, {"date": "02-07", "name": "Outdoor Walk", "type": "walk", "stat": "1.08 km · 16 min"}, {"date": "02-04", "name": "Evening Weight Training", "type": "weight", "stat": "4 min"}, {"date": "01-28", "name": "Afternoon Walk", "type": "walk", "stat": "1.03 km · 15 min"}, {"date": "01-20", "name": "Afternoon Walk", "type": "walk", "stat": "2.66 km · 38 min"}, {"date": "01-18", "name": "Lunch Walk", "type": "walk", "stat": "4.87 km · 81 min"}, {"date": "01-16", "name": "Evening Walk", "type": "walk", "stat": "2.05 km · 30 min"}, {"date": "01-14", "name": "Afternoon Walk", "type": "walk", "stat": "2.41 km · 33 min"}, {"date": "01-04", "name": "Afternoon Walk", "type": "walk", "stat": "4.20 km · 61 min"}, {"date": "12-30", "name": "Lunch Walk", "type": "walk", "stat": "2.73 km · 36 min"}, {"date": "12-20", "name": "Evening Walk", "type": "walk", "stat": "1.31 km · 17 min"}, {"date": "12-19", "name": "Evening Walk", "type": "walk", "stat": "1.64 km · 17 min"}, {"date": "11-14", "name": "Afternoon Walk", "type": "walk", "stat": "0.90 km · 12 min"}, {"date": "11-13", "name": "Afternoon Walk", "type": "walk", "stat": "1.42 km · 20 min"}, {"date": "11-12", "name": "Afternoon Walk", "type": "walk", "stat": "1.12 km · 14 min"}, {"date": "11-07", "name": "Afternoon Walk", "type": "walk", "stat": "4.27 km · 58 min"}, {"date": "10-31", "name": "Afternoon Walk", "type": "walk", "stat": "2.94 km · 35 min"}, {"date": "10-20", "name": "Lunch Walk", "type": "walk", "stat": "0.93 km · 15 min"}, {"date": "10-17", "name": "Morning Run", "type": "run", "stat": "1.5 km · 9.5 km/h"}, {"date": "10-04", "name": "Afternoon Walk", "type": "walk", "stat": "1.20 km · 18 min"}, {"date": "09-28", "name": "Lunch Walk", "type": "walk", "stat": "3.26 km · 51 min"}, {"date": "09-15", "name": "Afternoon Walk", "type": "walk", "stat": "4.37 km · 65 min"}, {"date": "09-13", "name": "Night Walk", "type": "walk", "stat": "3.28 km · 19 min"}, {"date": "08-30", "name": "Afternoon Walk", "type": "walk", "stat": "4.71 km · 66 min"}, {"date": "08-30", "name": "Lunch Walk", "type": "walk", "stat": "1.46 km · 78 min"}, {"date": "08-29", "name": "Afternoon Ride", "type": "ride", "stat": "3.6 km · 0.6 km/h"}, {"date": "08-24", "name": "Afternoon Ride", "type": "ride", "stat": "21.4 km · 19.0 km/h"}, {"date": "08-20", "name": "5km Progressive Long Run", "type": "run", "stat": "5.0 km · 6.7 km/h"}, {"date": "08-18", "name": "Afternoon Ride", "type": "ride", "stat": "0.0 km · 0.0 km/h"}, {"date": "08-11", "name": "Lunch Walk", "type": "walk", "stat": "1.28 km · 10 min"}];
+document.getElementById('logList').innerHTML = log.map(function(r){
+  return '<div class="log-row">' +
+    '<div class="date">' + r.date + '</div>' +
+    '<div class="what"><span class="type-pill ' + r.type + '"></span>' + r.name + '</div>' +
+    '<div class="stat">' + r.stat + '</div>' +
+  '</div>';
+}).join('');
 </script>
 </body>
 </html>
