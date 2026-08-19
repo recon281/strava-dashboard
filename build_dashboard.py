@@ -714,8 +714,8 @@ MANIFEST = {
     "background_color": "#ffffff",
     "theme_color": "#fc4c02",
     "icons": [
-        {"src": "pulse_app_icon_180.png", "sizes": "192x192", "type": "image/png"},
-        {"src": "pulse_app_icon_1024.png", "sizes": "512x512", "type": "image/png"},
+        {"src": "pulse_app_icon_180.png", "sizes": "180x180", "type": "image/png"},
+        {"src": "pulse_app_icon_1024.png", "sizes": "1024x1024", "type": "image/png"},
     ],
 }
 
