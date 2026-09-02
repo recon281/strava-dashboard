@@ -165,6 +165,160 @@ def compute_routes(activities, bucket_km=5, min_repeats=2):
     return routes
 
 
+def compute_advice(activities, today=None):
+    """
+    Rule-based training suggestions derived from recent activity.
+
+    Deliberately conservative: no heart-rate or power data is available from
+    the activity list, so everything here keys off frequency, volume, recency
+    and the spread of average speeds. Each item is (tone, title, text).
+    Tone drives the colour: 'push' = do more, 'rest' = back off, 'info' = neutral.
+    """
+    today = today or datetime.date.today()
+    advice = []
+    volume_jumped = False
+    returning = False
+
+    def plural_rides(n):
+        if n == 1:
+            return "1 jazdu"
+        if 2 <= n <= 4:
+            return f"{n} jazdy"
+        return f"{n} jázd"
+
+    rides = sorted([a for a in activities if a["sport_type"] == "Ride"],
+                   key=lambda x: x["start_date_local"])
+    all_sorted = sorted(activities, key=lambda x: x["start_date_local"])
+    if not all_sorted:
+        return [("info", "Zatiaľ žiadne dáta",
+                 "Keď pribudnú prvé aktivity, objavia sa tu konkrétne odporúčania.")]
+
+    def days_ago(a):
+        return (today - datetime.date.fromisoformat(a["start_date_local"][:10])).days
+
+    def in_window(pool, start, end):
+        return [a for a in pool if start <= days_ago(a) < end]
+
+    # ---------- recency ----------
+    last_any = days_ago(all_sorted[-1])
+    last_ride = days_ago(rides[-1]) if rides else None
+
+    if last_any >= 14:
+        returning = True
+        advice.append(("push", "Dlhšia pauza",
+                       f"Posledná aktivita bola pred {last_any} dňami. Po takejto prestávke "
+                       "začni kratšie a voľnejšie — jedna pokojná jazda do 45 minút, "
+                       "až potom sa vracaj k obvyklému objemu."))
+    elif last_ride is not None and last_ride >= 10:
+        advice.append(("push", "Čas sadnúť na bicykel",
+                       f"Od poslednej jazdy ubehlo {last_ride} dní. Forma na bicykli klesá "
+                       "rýchlejšie než pri chôdzi — aj krátka jazda ju udrží."))
+    elif last_any <= 1:
+        advice.append(("rest", "Čerstvá záťaž",
+                       "Trénoval si v posledných 24 hodinách. Ak bola záťaž vyššia, "
+                       "dnes stačí voľná prechádzka alebo úplné voľno."))
+
+    # ---------- frequency ----------
+    rides_4w = in_window(rides, 0, 28)
+    rides_prev_4w = in_window(rides, 28, 56)
+    per_week = len(rides_4w) / 4
+
+    if rides:
+        if per_week < 1:
+            advice.append(("push", "Pridaj frekvenciu",
+                           f"Za posledné 4 týždne máš {plural_rides(len(rides_4w))} (~{per_week:.1f}/týždeň). "
+                           "Pravidelnosť zlepšuje formu viac než jednotlivé dlhé výjazdy — "
+                           "cieľ sú 2 jazdy týždenne, aj keby mali byť kratšie."))
+        elif per_week < 2:
+            advice.append(("push", "Blízko k dobrému rytmu",
+                           f"~{per_week:.1f} jazdy týždenne za posledný mesiac. Tretia kratšia "
+                           "jazda v týždni by bola najväčší jednotlivý posun, aký teraz vieš spraviť."))
+        else:
+            advice.append(("info", "Dobrá frekvencia",
+                           f"~{per_week:.1f} jazdy týždenne za posledný mesiac. Toto tempo drž — "
+                           "teraz už dáva zmysel riešiť skôr obsah tréningov než ich počet."))
+
+    # ---------- volume trend ----------
+    km_4w = sum(a["distance"] for a in rides_4w) / 1000
+    km_prev = sum(a["distance"] for a in rides_prev_4w) / 1000
+    if km_prev > 5 and km_4w > 5:
+        change = (km_4w - km_prev) / km_prev * 100
+        if change > 50:
+            volume_jumped = True
+            advice.append(("rest", "Rýchly nárast objemu",
+                           f"Objem stúpol o {change:.0f}% oproti predchádzajúcim 4 týždňom "
+                           f"({km_prev:.0f} → {km_4w:.0f} km). Ďalší mesiac radšej udrž súčasnú "
+                           "úroveň — skoky nad ~30% za mesiac zvyšujú riziko preťaženia."))
+        elif change < -40:
+            advice.append(("push", "Objem klesol",
+                           f"Za posledné 4 týždne {km_4w:.0f} km oproti {km_prev:.0f} km predtým. "
+                           "Ak to nebolo zámerné voľno, vráť sa najprv na predošlú úroveň, "
+                           "až potom pridávaj."))
+
+    # ---------- intensity spread ----------
+    if len(rides_4w) >= 3:
+        speeds = [kmh(a) for a in rides_4w]
+        spread = max(speeds) - min(speeds)
+        if spread < 2.5:
+            advice.append(("push", "Skús intervaly",
+                           f"Priemerné rýchlosti posledných jázd sú si veľmi podobné "
+                           f"(rozptyl {spread:.1f} km/h). Telo si zvykne a progres sa spomalí. "
+                           "Zaraď raz týždenne 4–6× 3 minúty naplno / 2 minúty voľne."))
+
+    # ---------- long ride ----------
+    if rides:
+        longest_ever = max(a["distance"] for a in rides) / 1000
+        longest_recent = max((a["distance"] for a in rides_4w), default=0) / 1000
+        if rides_4w and longest_recent < longest_ever * 0.6:
+            advice.append(("push", "Chýba dlhá jazda",
+                           f"Najdlhšia jazda za posledný mesiac má {longest_recent:.0f} km, "
+                           f"pričom tvoje maximum je {longest_ever:.0f} km. Jedna dlhšia jazda "
+                           "za 1–2 týždne udržiava vytrvalostný základ."))
+        elif rides_4w and longest_recent >= longest_ever * 0.95 and longest_recent >= 40:
+            advice.append(("rest", "Po dlhej jazde",
+                           f"Nedávno si zajazdil {longest_recent:.0f} km — blízko svojmu maximu. "
+                           "Po takom výkone daj aspoň jeden úplne voľný deň a nasledujúcu "
+                           "jazdu ber pokojne."))
+
+    # ---------- next session ----------
+    if rides_4w:
+        avg_recent = sum(a["distance"] for a in rides_4w) / len(rides_4w) / 1000
+        if returning:
+            advice.append(("info", "Návrh na najbližšiu jazdu",
+                           f"Tvoj bežný priemer je {avg_recent:.0f} km, ale po pauze naň neskáč hneď. "
+                           f"Prvá jazda nech má zhruba {max(avg_recent * 0.5, 15):.0f} km voľným tempom; "
+                           "na plný objem sa vráť až po dvoch–troch jazdách."))
+        elif volume_jumped:
+            advice.append(("info", "Návrh na najbližšiu jazdu",
+                           f"Priemer tvojich posledných jázd je {avg_recent:.0f} km. "
+                           f"Keďže objem nedávno výrazne stúpol, drž sa teraz okolo "
+                           f"{avg_recent:.0f} km a pridávaj až o pár týždňov — "
+                           "s kadenciou nad 85 ot./min."))
+        else:
+            advice.append(("info", "Návrh na najbližšiu jazdu",
+                           f"Priemer tvojich posledných jázd je {avg_recent:.0f} km. "
+                           f"Rozumný ďalší krok je ~{avg_recent * 1.1:.0f} km pokojným tempom, "
+                           "s kadenciou nad 85 ot./min."))
+    elif rides:
+        advice.append(("info", "Návrh na návrat",
+                       "Začni jazdou do 20 km voľným tempom — ide o rozjazdenie, nie o čas."))
+
+    # ---------- variety ----------
+    walks_4w = in_window([a for a in activities if a["sport_type"] == "Walk"], 0, 28)
+    strength = in_window([a for a in activities
+                          if a["sport_type"] in ("WeightTraining", "Workout")], 0, 56)
+    if rides_4w and not strength:
+        advice.append(("info", "Sila mimo bicykla",
+                       "Za posledné 2 mesiace nemáš žiadny silový tréning. Dvakrát týždenne "
+                       "10–15 minút na nohy a stred tela pomáha výkonu aj prevencii bolestí chrbta."))
+    elif walks_4w and not rides_4w:
+        advice.append(("info", "Základ máš",
+                       f"Za mesiac {len(walks_4w)} prechádzok — pohybový základ funguje. "
+                       "Doplniť k tomu jednu jazdu týždenne by stačilo na viditeľný posun."))
+
+    return advice[:6]
+
+
 def compute_badges(activities, by_month, by_month_elev, by_week):
     """Earned achievement pills. Each is (label, tier) — tier drives the color."""
     badges = []
@@ -286,6 +440,7 @@ def build_data(activities, athlete, gear_list):
         "by_week": by_week,
         "rides_sorted": rides_sorted,
         "records": compute_records(activities),
+        "advice": compute_advice(activities),
         "routes": compute_routes(activities),
         "badges": compute_badges(activities, by_month, by_month_elev, by_week),
         "log": log,
@@ -352,6 +507,12 @@ def render_html(d):
         g = d["gear"][0]
         gear_line = f" &#183; {g.get('name','Bike')} &#183; {g.get('distance',0)/1000:.0f} km"
 
+    advice_html = "".join(
+        f'<div class="adv-card {tone}"><div class="adv-title">{title}</div>'
+        f'<div class="adv-text">{text}</div></div>'
+        for tone, title, text in d["advice"]
+    )
+
     replacements = {
         "{{NAME}}": name,
         "{{LOCATION}}": location,
@@ -363,6 +524,7 @@ def render_html(d):
         "{{TOTAL_CAL}}": f"{d['total_cal']/1000:.1f}",
         "{{SPORT_CARDS}}": sport_cards,
         "{{BADGES}}": badges_html,
+        "{{ADVICE}}": advice_html,
         "{{RECORDS}}": records_html,
         "{{ROUTES}}": routes_html,
         "{{ROUTES_NOTE}}": routes_note,
@@ -399,7 +561,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Tréning">
-<link rel="apple-touch-icon" href="pulse_app_icon_1024.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
@@ -450,6 +612,16 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:8px;}
   .section-head h2{font-size:14px;letter-spacing:.1em;text-transform:uppercase;margin:0;font-weight:600;}
   .section-head .tag{font-size:11px;color:var(--text-3);}
+
+  .adv-grid{display:grid;gap:10px;}
+  .adv-card{background:var(--surface);border:1px solid var(--line);border-radius:2px;
+    padding:14px 16px;border-left:4px solid var(--text-3);}
+  .adv-card.push{border-left-color:var(--brand);}
+  .adv-card.rest{border-left-color:#2eae5c;}
+  .adv-card.info{border-left-color:var(--run);}
+  .adv-title{font-size:13.5px;font-weight:700;margin-bottom:6px;}
+  .adv-text{font-size:13px;line-height:1.55;color:var(--text-2);}
+  .adv-note{font-size:11.5px;color:var(--text-3);line-height:1.5;margin:14px 0 0;}
 
   .badge-wrap{display:flex;flex-wrap:wrap;gap:8px;}
   .badge{font-size:12px;font-weight:600;padding:7px 12px;border-radius:999px;color:#fff;}
@@ -537,6 +709,14 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
     <div class="readout"><div class="val mono">{{TOTAL_ACT}}</div><div class="lbl">Aktivít</div></div>
     <div class="readout"><div class="val mono">{{TOTAL_CAL}}<small>k</small></div><div class="lbl">Kalórií</div></div>
   </div>
+
+  <section>
+    <div class="section-head"><h2>Odporúčania</h2><span class="tag mono">podľa posledných aktivít</span></div>
+    <div class="adv-grid">{{ADVICE}}</div>
+    <p class="adv-note">Odporúčania sú odvodené z frekvencie, objemu a rozptylu rýchlostí tvojich
+    aktivít — nie z tepovej frekvencie ani výkonu, tie Strava v prehľade aktivít neposkytuje.
+    Ber ich ako všeobecné vodidlo, nie ako plán od trénera.</p>
+  </section>
 
   <section>
     <div class="section-head"><h2>Odznaky</h2><span class="tag mono">získané výkony</span></div>
@@ -719,8 +899,8 @@ MANIFEST = {
     "background_color": "#ffffff",
     "theme_color": "#fc4c02",
     "icons": [
-        {"src": "pulse_app_icon_180.png", "sizes": "180x180", "type": "image/png"},
-        {"src": "pulse_app_icon_1024.png", "sizes": "1024x1024", "type": "image/png"},
+        {"src": "icon-192.png", "sizes": "192x192", "type": "image/png"},
+        {"src": "icon-512.png", "sizes": "512x512", "type": "image/png"},
     ],
 }
 
